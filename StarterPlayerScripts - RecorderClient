@@ -1,0 +1,36 @@
+--lbot
+local rs = game:GetService("ReplicatedStorage")
+local plr = game:GetService("Players")
+local nr = require(rs.Modules.NPCRecorderModule)
+
+local lp = plr.LocalPlayer
+local g = lp:WaitForChild("PlayerGui"):WaitForChild("RecorderGui")
+local f = g:WaitForChild("Panel")
+local sb = f:WaitForChild("StartButton")
+local stb = f:WaitForChild("StopButton")
+
+local n
+local rec = false
+
+sb.MouseButton1Click:Connect(function()
+	if rec then return end
+	rec = true
+	n = nr.sf(lp)
+	if n then
+		print("NPC spawn")
+		nr.sr(n)
+		nr.mpa(lp, n)
+	else
+		print("Failed to spawn NPC!")
+	end
+end)
+
+stb.MouseButton1Click:Connect(function()
+	if not rec then return end
+	rec = false
+	if n then
+		nr.ss(n)
+		n:Destroy()
+		print("Recording stopped and NPC destroyed.")
+	end
+end)
