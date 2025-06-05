@@ -1,0 +1,203 @@
+-- make sure to adjust the positions for stuff, i wouldve done it but i have no acces to the game :<
+task.wait(.1)
+local rs = game:GetService("ReplicatedStorage")
+local plr = game:GetService("Players")
+local lp = plr.LocalPlayer
+
+local g = lp:WaitForChild("PlayerGui"):WaitForChild("RecorderGui")
+local f = g:WaitForChild("Panel")
+local pb = f:WaitForChild("PlayButton")
+
+local ls = lp:WaitForChild("leaderstats")
+local stg = ls:WaitForChild("Stage")
+local cam = workspace.CurrentCamera
+
+local np = workspace:WaitForChild("NPCS")
+local tf = rs:WaitForChild("NPCTemplates")
+local af = rs:WaitForChild("Animations")
+
+-- empty npc folder
+for _, n in ipairs(np:GetChildren()) do
+	if n.Name == "" then
+		n:Destroy()
+	end
+end
+
+-- create dummy
+local csn = nil
+
+local function mnpcol(n)
+	for _, p in ipairs(n:GetDescendants()) do
+		if p:IsA("BasePart") then
+			p.CanCollide = true
+		end
+	end
+end
+
+local function dm()
+	if lp.Character then
+		local h = lp.Character:FindFirstChildWhichIsA("Humanoid")
+		if h then
+			h.WalkSpeed = 0
+			h.JumpPower = 0
+		end
+	end
+end
+
+local function em()
+	if lp.Character then
+		local h = lp.Character:FindFirstChildWhichIsA("Humanoid")
+		if h then
+			h.WalkSpeed = 16
+			h.JumpPower = 50
+		end
+	end
+end
+
+local function pkspec(n, kfs, finish)
+	local kf = kfs:GetChildren()
+	table.sort(kf, function(a, b) return a.Time < b.Time end)
+	local h = n:WaitForChild("Humanoid")
+	local a = h:FindFirstChild("Animator") or Instance.new("Animator", h)
+
+	local function la(id)
+		local anim = Instance.new("Animation")
+		anim.AnimationId = id
+		return a:LoadAnimation(anim)
+	end
+
+	local anims = {
+		walk = la("http://www.roblox.com/asset/?id=180426354"),
+		run = la("http://www.roblox.com/asset/?id=180426354"),
+		jump = la("http://www.roblox.com/asset/?id=125750702"),
+		fall = la("http://www.roblox.com/asset/?id=180436148"),
+		idle = la("http://www.roblox.com/asset/?id=180435571"),
+		climb = la("http://www.roblox.com/asset/?id=180436334"),
+		sit = la("http://www.roblox.com/asset/?id=178130996"),
+		toolnone = la("http://www.roblox.com/asset/?id=182393478"),
+		toolslash = la("http://www.roblox.com/asset/?id=129967390"),
+		toollunge = la("http://www.roblox.com/asset/?id=129967478"),
+		wave = la("http://www.roblox.com/asset/?id=128777973"),
+		point = la("http://www.roblox.com/asset/?id=128853357"),
+		dance1 = la("http://www.roblox.com/asset/?id=182435998"),
+		dance2 = la("http://www.roblox.com/asset/?id=182436842"),
+		dance3 = la("http://www.roblox.com/asset/?id=182436935"),
+		laugh = la("http://www.roblox.com/asset/?id=129423131"),
+		cheer = la("http://www.roblox.com/asset/?id=129423030")
+	}
+
+	local ca = nil
+	local function pa(an)
+		if ca ~= an then
+			if ca and anims[ca] then
+				anims[ca]:Stop()
+			end
+			if anims[an] then
+				anims[an]:Play()
+				ca = an
+			end
+		end
+	end
+
+	local function ua(cp, np, kf)
+		local em = kf:FindFirstChild("Emote")
+		if em and anims[em.Value] then
+			pa(em.Value)
+			return
+		end
+		local mv = (np - cp).Magnitude
+		if h:GetState() == Enum.HumanoidStateType.Climbing then
+			pa("climb")
+		elseif mv > 0.1 then
+			if mv > 0.5 then
+				pa("run")
+				anims.run:AdjustSpeed(mv * 1.5)
+			else
+				pa("walk")
+				anims.walk:AdjustSpeed(mv * 2)
+			end
+		else
+			pa("idle")
+		end
+	end
+
+	h.StateChanged:Connect(function(_, ns)
+		if ns == Enum.HumanoidStateType.Jumping then
+			pa("jump")
+		elseif ns == Enum.HumanoidStateType.Freefall then
+			pa("fall")
+		end
+	end)
+
+	-- camera
+	local running = true
+	spawn(function()
+		while running and n.Parent do
+			cam.CameraSubject = n.Humanoid
+			cam.CameraType = Enum.CameraType.Follow
+			wait(0.03)
+		end
+	end)
+
+	-- playback
+	local st = tick()
+	local lpst = n.HumanoidRootPart.Position
+
+	for i, k in ipairs(kf) do
+		local wt = k.Time - (tick() - st)
+		if wt > 0 then
+			task.wait(wt)
+		end
+		local pose = k:FindFirstChild("HumanoidRootPart")
+		if pose then
+			n.HumanoidRootPart.CFrame = pose.CFrame
+			ua(lpst, pose.CFrame.Position, k)
+			lpst = pose.CFrame.Position
+		end
+	end
+
+	running = false -- Stop camera follow
+	if finish then finish() end
+end
+
+pb.MouseButton1Click:Connect(function()
+	-- stuff
+	for _, c in ipairs(np:GetChildren()) do
+		if c.Name == "" then
+			c:Destroy()
+		end
+	end
+
+	-- create new dummy
+	local nt = tf:FindFirstChild("sigma1")
+	if not nt then
+		warn("NPC template sigma1 missing in NPCTemplates!")
+		return
+	end
+	local n = nt:Clone()
+	n.Name = ""  -- hide tag
+	n.Parent = np
+	mnpcol(n)
+	csn = n
+
+	-- load animation
+	local stgval = stg.Value
+	local kfs = af:FindFirstChild("s" .. tostring(stgval))
+	if not kfs then
+		warn("Could not find animation sequence: s" .. tostring(stgval))
+		n:Destroy()
+		csn = nil
+		return
+	end
+
+	dm()
+	pkspec(n, kfs, function()
+		cam.CameraSubject = lp.Character and lp.Character:FindFirstChildWhichIsA("Humanoid")
+		cam.CameraType = Enum.CameraType.Custom
+		em()
+		if csn and csn.Parent then
+			csn:Destroy()
+			csn = nil
+		end
+	end)
+end)
