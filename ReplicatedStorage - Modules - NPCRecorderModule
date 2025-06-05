@@ -1,0 +1,257 @@
+--lbot (just make sure u have everything set up) ALSO "Modules" should be a folder :P
+local rs = game:GetService("ReplicatedStorage")
+local plr = game:GetService("Players")
+
+local mod = {}
+
+local rr = 0.1    
+local dly = 1          
+
+local recs = {}
+
+--------------------------------------------------------------------
+-- Spawns the npc behind the player (sigma)
+--------------------------------------------------------------------
+function mod.sf(p)
+	local nt = nil
+
+	for _, c in ipairs(rs:GetChildren()) do
+		if c:IsA("Model") and c:FindFirstChild("Humanoid") and c:FindFirstChild("HumanoidRootPart") then
+			if c.Name == "DummyR6" or c.Name == " " then
+				nt = c
+				break
+			end
+		end
+	end
+
+	assert(nt, "NPC template not found in ReplicatedStorage!")
+
+	local n = nt:Clone()
+	n.Name = " "
+	n.Parent = workspace
+
+	local so = CFrame.new(0, 0, 5)
+	local phrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+	assert(phrp, "Player's HumanoidRootPart not found!")
+	n:SetPrimaryPartCFrame(phrp.CFrame * so)
+
+	for _, prt in ipairs(n:GetDescendants()) do
+		if prt:IsA("BasePart") then
+			prt.CanCollide = false
+			prt.Transparency = 0.75
+		end
+	end
+
+	task.spawn(function()
+		while n and n.Parent do
+			for _, prt in ipairs(n:GetDescendants()) do
+				if prt:IsA("BasePart") then
+					prt.CanCollide = false
+				end
+			end
+			task.wait()
+		end
+	end)
+
+	return n
+end
+
+--------------------------------------------------------------------
+-- Starts the recording: sets up three parallel loops (cuz yeah)
+--------------------------------------------------------------------
+function mod.sr(n)
+	local lp = plr.LocalPlayer
+	local ch = lp.Character
+	local nrp = n:WaitForChild("HumanoidRootPart")
+
+	local rr = 0.016667
+	local dly = 0.5
+	local ispd = 0.2
+
+	local kf = {}
+	local hist = {}
+	local st = tick()
+
+	recs[n] = {
+		kf = kf,
+		rec = true,
+	}
+
+	coroutine.wrap(function()
+		while recs[n].rec do
+			local ct = tick() - st
+			local ppos = ch.HumanoidRootPart.CFrame
+			table.insert(hist, {t = ct, cf = ppos})
+			task.wait(rr)
+		end
+	end)()
+
+	coroutine.wrap(function()
+		local lcf = nrp.CFrame
+
+		while recs[n].rec do
+			local ct = tick() - st
+
+			if #hist > 0 and (ct - hist[1].t >= dly) then
+				local td = table.remove(hist, 1)
+				local tcf = td.cf
+
+				lcf = lcf:Lerp(tcf, ispd)
+				nrp.CFrame = lcf
+			end
+
+			task.wait(rr) 
+		end
+	end)()
+
+	coroutine.wrap(function()
+		while recs[n].rec do
+			local ct = tick() - st
+			local ccf = nrp.CFrame
+			table.insert(kf, {t = ct, cf = ccf})
+			task.wait(rr)
+		end
+	end)()
+end
+
+--------------------------------------------------------------------
+-- mirror movement!! :0
+--------------------------------------------------------------------
+function mod.mpa(p, n)
+	local ph = p.Character:WaitForChild("Humanoid")
+	local nh = n:WaitForChild("Humanoid")
+	local pa = ph:WaitForChild("Animator")
+	local na = nh:WaitForChild("Animator")
+
+	local tp = {}
+	local ca = {}
+
+	local function ctrack(ptr)
+		task.delay(0.1, function()
+			if not recs[n] or not recs[n].rec then return end
+
+			local aid = ptr.Animation.AnimationId
+			if ca[aid] then
+				ca[aid]:Stop()
+				tp[ca[aid]] = nil
+			end
+
+			local anim = ptr.Animation:Clone()
+			local ntr = na:LoadAnimation(anim)
+
+			tp[ptr] = ntr
+			ca[aid] = ntr
+
+			if ptr.IsPlaying then
+				ntr:Play()
+				ntr:AdjustSpeed(ptr.Speed)
+			end
+		end)
+	end
+
+	local function strack(ptr)
+		task.delay(0.1, function()
+			local ntr = tp[ptr]
+			if ntr then
+				local aid = ptr.Animation.AnimationId
+				ca[aid] = nil
+				ntr:Stop()
+				tp[ptr] = nil
+			end
+		end)
+	end
+
+	local function clean()
+		while recs[n] and recs[n].rec do
+			for ptr, ntr in pairs(tp) do
+				if not ptr.IsPlaying then
+					ntr:Stop()
+					local aid = ptr.Animation.AnimationId
+					ca[aid] = nil
+					tp[ptr] = nil
+				end
+			end
+			task.wait(1)
+		end
+	end
+
+	local pcon = pa.AnimationPlayed:Connect(ctrack)
+	local scon = pa.AnimationStopped:Connect(strack)
+
+	local clth = task.spawn(clean)
+
+	task.spawn(function()
+		while recs[n] and recs[n].rec do
+			task.wait()
+		end
+		pcon:Disconnect()
+		scon:Disconnect()
+		task.cancel(clth)
+
+		for _, ntr in pairs(tp) do
+			ntr:Stop()
+		end
+
+		table.clear(tp)
+		table.clear(ca)
+	end)
+
+	for _, tr in ipairs(pa:GetPlayingAnimationTracks()) do
+		ctrack(tr)
+	end
+end
+
+--------------------------------------------------------------------
+-- Stops the recording and creates a KeyframeSequence from the keyframes. whiiiich will be saved into a folder around here so u  can just copyand paste it into animations
+--------------------------------------------------------------------
+function mod.ss(n)
+	local data = recs[n]
+	if not data or not data.rec then
+		warn("No recording data found for this NPC.")
+		return
+	end
+
+	data.rec = false
+	local kf = data.kf
+
+	if not kf or #kf == 0 then
+		warn("No keyframes captured.")
+		return
+	end
+
+	local rs = game:GetService("ReplicatedStorage")
+	local af = rs:FindFirstChild("SavedAnimations")
+	if not af then
+		af = Instance.new("Folder")
+		af.Name = "SavedAnimations"
+		af.Parent = rs
+	end
+
+	local seq = Instance.new("KeyframeSequence")
+
+	seq:SetAttribute("RecordDate", os.date("%Y-%m-%d"))
+	seq:SetAttribute("RecordTime", os.date("%H:%M:%S"))
+
+	for _, f in ipairs(kf) do
+		local kfr = Instance.new("Keyframe")
+		kfr.Time = f.t
+
+		local pose = Instance.new("Pose")
+		pose.Name = "HumanoidRootPart"
+		pose.CFrame = f.cf
+		pose.Weight = 1
+		pose.Parent = kfr
+
+		kfr.Parent = seq
+	end
+
+	local ts = os.date("%Y%m%d_%H%M%S")
+	seq.Name = "RecordedAnimation_" .. ts
+	seq.Parent = af
+
+	recs[n] = nil
+
+	print("Animation saved to ReplicatedStorage > SavedAnimations > " .. seq.Name)
+end
+
+return mod
