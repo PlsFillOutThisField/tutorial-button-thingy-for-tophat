@@ -1,0 +1,39 @@
+local rs = game:GetService("ReplicatedStorage")
+local plr = game:GetService("Players")
+local lp = plr.LocalPlayer
+
+local ntp = rs:FindFirstChild("NPCTemplates")
+if not ntp then
+	ntp = Instance.new("Folder")
+	ntp.Name = "NPCTemplates"
+	ntp.Parent = rs
+end
+
+local exs = ntp:FindFirstChild("sigma1")
+if exs then
+	exs:Destroy()
+end
+
+local function csa()
+
+	local hd = plr:GetHumanoidDescriptionFromUserId(lp.UserId)
+
+	local dmy = plr:CreateHumanoidModelFromDescription(hd, Enum.HumanoidRigType.R6)
+	dmy.Name = "sigma1"
+
+	local hum = dmy:FindFirstChildOfClass("Humanoid")
+	if hum and not hum:FindFirstChildOfClass("Animator") then
+		local anm = Instance.new("Animator")
+		anm.Parent = hum
+	end
+
+	local hrp = dmy:FindFirstChild("HumanoidRootPart")
+	if hrp then
+		hrp.Anchored = true
+		hrp.CFrame = CFrame.new(0, 5, 0)
+	end
+
+	dmy.Parent = ntp
+end
+
+csa()
